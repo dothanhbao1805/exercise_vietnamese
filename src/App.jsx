@@ -1,4 +1,23 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+const PROGRESS_STORAGE_KEY = 'luyen-tieng-viet:lesson-05:progress-v1'
+
+const readSavedProgress = () => {
+  if (typeof window === 'undefined') return {}
+
+  try {
+    const saved = window.localStorage.getItem(PROGRESS_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : {}
+  } catch {
+    return {}
+  }
+}
+
+const restoreArray = (value, length, fallback, isValid) => (
+  Array.isArray(value) && value.length === length && value.every(isValid)
+    ? value
+    : Array(length).fill(fallback)
+)
 
 const exercises = [
   { short: 'Bài 1', title: 'Chọn câu đúng', englishTitle: 'Choose the correct sentence', description: 'Nhận dạng cấu trúc đúng ngữ pháp', count: 3 },
@@ -157,6 +176,9 @@ const Icon = ({ name, size = 20 }) => {
     spark: <><path d="m12 3-1.1 3.4a7.5 7.5 0 0 1-4.5 4.5L3 12l3.4 1.1a7.5 7.5 0 0 1 4.5 4.5L12 21l1.1-3.4a7.5 7.5 0 0 1 4.5-4.5L21 12l-3.4-1.1a7.5 7.5 0 0 1-4.5-4.5z" /></>,
     menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
     close: <><path d="m6 6 12 12M18 6 6 18" /></>,
+    trophy: <><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0z" /><path d="M7 6H4v1a4 4 0 0 0 4 4M17 6h3v1a4 4 0 0 1-4 4" /></>,
+    chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
+    target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></>,
   }
 
   return (
@@ -201,16 +223,150 @@ function Feedback({ correct, explanation, explanationEn }) {
   )
 }
 
+function ResultsPage({ exercises, sectionScores, totalQuestions, reviewItems, onReviewExercise, onReviewMistakes, onRestart }) {
+  const finalScore = sectionScores.reduce((sum, score) => sum + score, 0)
+  const percentage = Math.round((finalScore / totalQuestions) * 100)
+  const wrongCount = totalQuestions - finalScore
+  const [reviewFilter, setReviewFilter] = useState('all')
+  const visibleItems = reviewFilter === 'wrong' ? reviewItems.filter((item) => !item.correct) : reviewItems
+  const resultMessage = percentage >= 90
+    ? 'Xuất sắc! Bạn đã nắm rất chắc các cấu trúc của bài học.'
+    : percentage >= 70
+      ? 'Làm tốt lắm! Hãy xem lại vài câu chưa đúng để ghi nhớ lâu hơn.'
+      : 'Bạn đã hoàn thành bài học. Phần xem lại bên dưới sẽ giúp bạn củng cố kiến thức.'
+  const resultMessageEn = percentage >= 90
+    ? 'Excellent! You have a strong command of the structures in this lesson.'
+    : percentage >= 70
+      ? 'Great work! Review the questions you missed to remember them longer.'
+      : 'You completed the lesson. Use the review below to strengthen your understanding.'
+
+  return (
+    <div className="app-shell results-shell">
+      <header className="site-header results-header">
+        <div className="header-inner">
+          <button className="brand brand-button" type="button" onClick={() => onReviewExercise(0)} aria-label="Quay lại bài học / Back to lesson"><div><strong>Luyện tiếng Việt</strong><span>Cùng hiểu · Cùng dùng</span></div></button>
+          <div className="results-header-label"><Icon name="check" size={16} /><span>Đã hoàn thành 5/5 bài<small>Completed 5/5 exercises</small></span></div>
+        </div>
+      </header>
+
+      <main className="results-page">
+        <section className="results-hero">
+          <div className="result-trophy"><Icon name="trophy" size={34} /></div>
+          <span className="results-kicker">TỔNG KẾT BÀI HỌC 05 <small>LESSON 05 SUMMARY</small></span>
+          <h1>Bạn đã hoàn thành bài học!<small>You have completed the lesson!</small></h1>
+          <p>{resultMessage}<small>{resultMessageEn}</small></p>
+          <div className="score-ring" style={{ '--score-angle': `${percentage * 3.6}deg` }}>
+            <div><strong>{percentage}%</strong><span>{finalScore}/{totalQuestions} câu đúng · correct</span></div>
+          </div>
+        </section>
+
+        <section className="result-stats" aria-label="Thống kê tổng quan">
+          <article><span className="stat-icon stat-blue"><Icon name="target" size={21} /></span><div><small>Độ chính xác</small><strong>{percentage}%</strong><p>Accuracy</p></div></article>
+          <article><span className="stat-icon stat-green"><Icon name="check" size={21} /></span><div><small>Câu trả lời đúng</small><strong>{finalScore}</strong><p>Correct answers</p></div></article>
+          <article><span className="stat-icon stat-red">×</span><div><small>Cần xem lại</small><strong>{wrongCount}</strong><p>Needs review</p></div></article>
+          <article><span className="stat-icon stat-gold"><Icon name="chart" size={21} /></span><div><small>Bài đã hoàn thành</small><strong>5/5</strong><p>Exercises completed</p></div></article>
+        </section>
+
+        <section className="results-section">
+          <div className="results-section-heading"><div><span>KẾT QUẢ THEO BÀI · RESULTS BY EXERCISE</span><h2>Điểm chi tiết<small>Detailed scores</small></h2></div><p>Chọn một bài để quay lại xem nội dung và lời giải.<small>Select an exercise to review its content and explanations.</small></p></div>
+          <div className="section-score-list">
+            {exercises.map((exercise, index) => {
+              const sectionPercent = Math.round((sectionScores[index] / exercise.count) * 100)
+              return (
+                <button type="button" className="section-score-row" key={exercise.title} onClick={() => onReviewExercise(index)}>
+                  <span className="section-score-index">{index + 1}</span>
+                  <span className="section-score-info"><strong>{exercise.title}</strong><small>{exercise.englishTitle}</small><span className="mini-progress"><i style={{ width: `${sectionPercent}%` }} /></span></span>
+                  <span className="section-score-value"><strong>{sectionScores[index]}/{exercise.count}</strong><small>{sectionPercent}%</small></span>
+                  <Icon name="arrow" size={17} />
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="results-section review-section">
+          <div className="results-section-heading review-heading"><div><span>XEM LẠI CÂU TRẢ LỜI · ANSWER REVIEW</span><h2>Chi tiết từng câu<small>Question details</small></h2></div><div className="review-filters"><button className={reviewFilter === 'all' ? 'active' : ''} type="button" onClick={() => setReviewFilter('all')}><span>Tất cả ({totalQuestions})</span><small>All</small></button><button className={reviewFilter === 'wrong' ? 'active' : ''} type="button" onClick={() => setReviewFilter('wrong')}><span>Cần xem lại ({wrongCount})</span><small>Needs review</small></button></div></div>
+          {visibleItems.length > 0 ? (
+            <div className="review-details-list">
+              {visibleItems.map((item) => (
+                <details className={`review-detail ${item.correct ? 'is-correct' : 'is-wrong'}`} key={`${item.sectionIndex}-${item.questionNumber}`}>
+                  <summary>
+                    <span className="review-result-icon">{item.correct ? <Icon name="check" size={15} /> : '×'}</span>
+                    <span><small>{exercises[item.sectionIndex].short} · Câu {item.questionNumber} / Question {item.questionNumber}</small><strong>{item.prompt}</strong></span>
+                    <span className="review-result-label">{item.correct ? 'Đúng · Correct' : 'Xem lại · Review'}</span>
+                  </summary>
+                  <div className="review-detail-body">
+                    <div className="answer-comparison"><p><small>Câu trả lời của bạn · Your answer</small><strong className={item.correct ? 'answer-good' : 'answer-bad'}>{item.userAnswer}</strong></p>{!item.correct && <p><small>Đáp án đúng · Correct answer</small><strong className="answer-good">{item.correctAnswer}</strong></p>}</div>
+                    <p className="review-explanation"><strong>Giải thích · Explanation:</strong> {item.explanation}<small>{item.explanationEn}</small></p>
+                  </div>
+                </details>
+              ))}
+            </div>
+          ) : <div className="perfect-review"><Icon name="trophy" size={27} /><strong>Không có câu nào cần xem lại!</strong><span>No questions need review. You answered the entire lesson correctly.</span></div>}
+        </section>
+
+        <div className="results-actions">
+          <button className="button-secondary" type="button" onClick={onRestart}><Icon name="reset" size={18} /><span className="button-label"><span>Làm lại toàn bộ</span><small>Restart lesson</small></span></button>
+          {wrongCount > 0 && <button className="button-primary" type="button" onClick={onReviewMistakes}><span className="button-label"><span>Xem bài có câu sai</span><small>Review incorrect answers</small></span><Icon name="arrow" size={18} /></button>}
+        </div>
+      </main>
+      <footer className="site-footer"><div><span>Học tiếng Việt mỗi ngày, từng bước một. · Learn Vietnamese every day, one step at a time.</span></div><span>© 2026 Luyện tiếng Việt</span></footer>
+    </div>
+  )
+}
+
 function App() {
-  const [current, setCurrent] = useState(0)
+  const [savedProgress] = useState(readSavedProgress)
+  const [current, setCurrent] = useState(() => Number.isInteger(savedProgress.current) && savedProgress.current >= 0 && savedProgress.current < exercises.length ? savedProgress.current : 0)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [grammarAnswers, setGrammarAnswers] = useState(Array(3).fill(null))
-  const [fillAnswers, setFillAnswers] = useState(Array(6).fill(''))
-  const [orders, setOrders] = useState(orderQuestions.map(() => []))
-  const [scenarioAnswers, setScenarioAnswers] = useState(Array(3).fill(null))
-  const [matchAnswers, setMatchAnswers] = useState(Array(5).fill(''))
-  const [submitted, setSubmitted] = useState(Array(5).fill(false))
+  const [grammarAnswers, setGrammarAnswers] = useState(() => restoreArray(savedProgress.grammarAnswers, 3, null, (answer) => answer === null || (Number.isInteger(answer) && answer >= 0 && answer < 4)))
+  const [fillAnswers, setFillAnswers] = useState(() => restoreArray(savedProgress.fillAnswers, 6, '', (answer) => typeof answer === 'string'))
+  const [orders, setOrders] = useState(() => (
+    Array.isArray(savedProgress.orders) && savedProgress.orders.length === orderQuestions.length && savedProgress.orders.every((order, index) => Array.isArray(order) && order.every((tokenIndex) => Number.isInteger(tokenIndex) && tokenIndex >= 0 && tokenIndex < orderQuestions[index].tokens.length))
+      ? savedProgress.orders
+      : orderQuestions.map(() => [])
+  ))
+  const [scenarioAnswers, setScenarioAnswers] = useState(() => restoreArray(savedProgress.scenarioAnswers, 3, null, (answer) => answer === null || (Number.isInteger(answer) && answer >= 0 && answer < 4)))
+  const [matchAnswers, setMatchAnswers] = useState(() => restoreArray(savedProgress.matchAnswers, 5, '', (answer) => typeof answer === 'string' && (answer === '' || ['0', '1', '2', '3', '4'].includes(answer))))
+  const [submitted, setSubmitted] = useState(() => restoreArray(savedProgress.submitted, 5, false, (value) => typeof value === 'boolean'))
+  const [showResults, setShowResults] = useState(() => Boolean(typeof window !== 'undefined' && window.location.hash === '#/results' && restoreArray(savedProgress.submitted, 5, false, (value) => typeof value === 'boolean').every(Boolean)))
   const contentRef = useRef(null)
+
+  useEffect(() => {
+    const progressSnapshot = {
+      current,
+      grammarAnswers,
+      fillAnswers,
+      orders,
+      scenarioAnswers,
+      matchAnswers,
+      submitted,
+      showResults,
+      savedAt: new Date().toISOString(),
+    }
+
+    try {
+      window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progressSnapshot))
+    } catch {
+      // The lesson remains usable even when storage is blocked or full.
+    }
+  }, [current, grammarAnswers, fillAnswers, orders, scenarioAnswers, matchAnswers, submitted, showResults])
+
+  useEffect(() => {
+    if (window.location.hash !== '#/lesson' && window.location.hash !== '#/results') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/lesson`)
+    }
+
+    const syncPageWithRoute = () => {
+      const canShowResults = submitted.every(Boolean)
+      setShowResults(window.location.hash === '#/results' && canShowResults)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    window.addEventListener('hashchange', syncPageWithRoute)
+    syncPageWithRoute()
+    return () => window.removeEventListener('hashchange', syncPageWithRoute)
+  }, [submitted])
 
   const answeredBySection = [
     grammarAnswers.filter((answer) => answer !== null).length,
@@ -246,6 +402,11 @@ function App() {
   const submitCurrent = () => {
     if (!sectionReady) return
     setSubmitted((previous) => previous.map((value, index) => index === current ? true : value))
+    const completesLesson = submitted.every((value, index) => index === current ? true : value)
+    if (completesLesson) {
+      window.location.hash = '/results'
+      return
+    }
     window.requestAnimationFrame(() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
@@ -398,6 +559,49 @@ function App() {
   const currentExercise = exercises[current]
   const remaining = currentExercise.count - answeredBySection[current]
 
+  const reviewItems = useMemo(() => [
+    ...grammarQuestions.map((question, index) => ({ sectionIndex: 0, questionNumber: index + 1, prompt: question.prompt, userAnswer: grammarAnswers[index] === null ? 'Chưa trả lời · Not answered' : question.options[grammarAnswers[index]], correctAnswer: question.options[question.answer], correct: grammarAnswers[index] === question.answer, explanation: question.explanation, explanationEn: question.explanationEn })),
+    ...fillItems.map((item, index) => ({ sectionIndex: 1, questionNumber: index + 1, prompt: `Chỗ trống số ${index + 1} trong đoạn “Một cuối tuần ở hội sách”`, userAnswer: fillAnswers[index] || 'Chưa trả lời · Not answered', correctAnswer: item.answer, correct: fillAnswers[index] === item.answer, explanation: item.explanation, explanationEn: item.explanationEn })),
+    ...orderQuestions.map((question, index) => {
+      const userSentence = orders[index].map((tokenIndex) => question.tokens[tokenIndex]).join(' ')
+      const correctSentence = question.answer.join(' ')
+      return { sectionIndex: 2, questionNumber: index + 1, prompt: 'Sắp xếp các từ thành câu hoàn chỉnh · Put the words in the correct order', userAnswer: userSentence || 'Chưa trả lời · Not answered', correctAnswer: correctSentence, correct: userSentence === correctSentence, explanation: question.explanation, explanationEn: question.explanationEn }
+    }),
+    ...scenarioQuestions.map((question, index) => ({ sectionIndex: 3, questionNumber: index + 1, prompt: question.quote, userAnswer: scenarioAnswers[index] === null ? 'Chưa trả lời · Not answered' : question.options[scenarioAnswers[index]], correctAnswer: question.options[question.answer], correct: scenarioAnswers[index] === question.answer, explanation: question.explanation, explanationEn: question.explanationEn })),
+    ...matchLeft.map((left, index) => ({ sectionIndex: 4, questionNumber: index + 1, prompt: left, userAnswer: matchAnswers[index] ? `${left} ${matchRight[Number(matchAnswers[index])]}` : 'Chưa trả lời · Not answered', correctAnswer: `${left} ${matchRight[index]}`, correct: matchAnswers[index] === String(index), explanation: matchExplanations[index], explanationEn: matchExplanationsEn[index] })),
+  ], [grammarAnswers, fillAnswers, orders, scenarioAnswers, matchAnswers])
+
+  const openExerciseFromResults = (index) => {
+    setCurrent(index)
+    window.location.hash = '/lesson'
+  }
+
+  const openFirstMistake = () => {
+    const firstMistake = reviewItems.find((item) => !item.correct)
+    openExerciseFromResults(firstMistake?.sectionIndex ?? 0)
+  }
+
+  const restartLesson = () => {
+    setCurrent(0)
+    setGrammarAnswers(Array(3).fill(null))
+    setFillAnswers(Array(6).fill(''))
+    setOrders(orderQuestions.map(() => []))
+    setScenarioAnswers(Array(3).fill(null))
+    setMatchAnswers(Array(5).fill(''))
+    setSubmitted(Array(5).fill(false))
+    window.location.hash = '/lesson'
+    try {
+      window.localStorage.removeItem(PROGRESS_STORAGE_KEY)
+    } catch {
+      // State is still cleared for the current session when storage is unavailable.
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (showResults) {
+    return <ResultsPage exercises={exercises} sectionScores={sectionScores} totalQuestions={totalQuestions} reviewItems={reviewItems} onReviewExercise={openExerciseFromResults} onReviewMistakes={openFirstMistake} onRestart={restartLesson} />
+  }
+
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -433,7 +637,7 @@ function App() {
           <div className="lesson-actions">
             <button className="button-secondary" type="button" onClick={() => goToExercise(Math.max(0, current - 1))} disabled={current === 0}><Icon name="back" size={18} /><span className="button-label"><span>Bài trước</span><small>Previous</small></span></button>
             <div className="submit-area">
-              {!submitted[current] ? <>{remaining > 0 && <span>Còn {remaining} câu chưa hoàn thành</span>}<button className="button-primary" type="button" disabled={!sectionReady} onClick={submitCurrent}><span className="button-label"><span>Kiểm tra đáp án</span><small>Check answers</small></span><Icon name="check" size={18} /></button></> : <><button className="button-ghost" type="button" onClick={resetCurrent}><Icon name="reset" size={17} /><span className="button-label"><span>Làm lại</span><small>Try again</small></span></button>{current < exercises.length - 1 && <button className="button-primary" type="button" onClick={() => goToExercise(current + 1)}><span className="button-label"><span>Sang bài tiếp theo</span><small>Next exercise</small></span><Icon name="arrow" size={18} /></button>}</>}
+              {!submitted[current] ? <>{remaining > 0 && <span>Còn {remaining} câu chưa hoàn thành</span>}<button className="button-primary" type="button" disabled={!sectionReady} onClick={submitCurrent}><span className="button-label"><span>{current === exercises.length - 1 ? 'Hoàn thành & xem kết quả' : 'Kiểm tra đáp án'}</span><small>{current === exercises.length - 1 ? 'Finish & view results' : 'Check answers'}</small></span><Icon name="check" size={18} /></button></> : <><button className="button-ghost" type="button" onClick={resetCurrent}><Icon name="reset" size={17} /><span className="button-label"><span>Làm lại</span><small>Try again</small></span></button>{current < exercises.length - 1 ? <button className="button-primary" type="button" onClick={() => goToExercise(current + 1)}><span className="button-label"><span>Sang bài tiếp theo</span><small>Next exercise</small></span><Icon name="arrow" size={18} /></button> : <button className="button-primary" type="button" onClick={() => { window.location.hash = '/results' }}><span className="button-label"><span>Xem tổng kết</span><small>View results</small></span><Icon name="arrow" size={18} /></button>}</>}
             </div>
           </div>
         </section>
