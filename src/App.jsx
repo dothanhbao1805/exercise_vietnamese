@@ -252,7 +252,7 @@ function ResultsPage({ exercises, sectionScores, totalQuestions, reviewItems, on
       <main className="results-page">
         <section className="results-hero">
           <div className="result-trophy"><Icon name="trophy" size={34} /></div>
-          <span className="results-kicker">TỔNG KẾT BÀI HỌC 05 <small>LESSON 05 SUMMARY</small></span>
+          <span className="results-kicker">TỔNG KẾT BÀI HỌC 09 <small>LESSON 09 SUMMARY</small></span>
           <h1>Bạn đã hoàn thành bài học!<small>You have completed the lesson!</small></h1>
           <p>{resultMessage}<small>{resultMessageEn}</small></p>
           <div className="score-ring" style={{ '--score-angle': `${percentage * 3.6}deg` }}>
@@ -614,7 +614,7 @@ function App() {
 
       <main id="top" className="page-layout">
         <aside className={`lesson-sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
-          <div className="sidebar-intro"><span className="lesson-tag">BÀI HỌC 05</span><h1>Cấu trúc trong chủ đề giải trí</h1><p>Luyện cách dùng “đã...chưa?”, “nghe nói”, “vẫn”, “còn” và “vẫn còn”.</p></div>
+          <div className="sidebar-intro"><span className="lesson-tag">BÀI HỌC 09</span><h1>Cấu trúc trong chủ đề giải trí</h1><p>Luyện cách dùng “đã...chưa?”, “nghe nói”, “vẫn”, “còn” và “vẫn còn”.</p></div>
           <nav className="exercise-nav" aria-label="Danh sách bài tập">
             {exercises.map((exercise, index) => (
               <button type="button" key={exercise.title} className={`${current === index ? 'active' : ''} ${submitted[index] ? 'done' : ''}`} onClick={() => goToExercise(index)}>
